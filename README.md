@@ -13,7 +13,7 @@
     *Equal Contribution
 </div>
 <div>
-    <b>arXiv 2024</b>
+    <b>NeurIPS 2024</b>
 </div>
 <br>
 
