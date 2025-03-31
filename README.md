@@ -94,7 +94,7 @@ Download the MANO hand model. Please visit the [MANO website](https://mano.is.tu
 
 
 ## Demo 
-For demo, download the trained Hamba model weights [here]().
+For demo, download the trained Hamba model weights [here](https://drive.google.com/file/d/1JRPC11YfQym8t_EZkhsroglvGHrGPbU-/view?usp=sharing).
 ```bash
 python demo.py --checkpoint ckpts/hamba/checkpoints/hamba.ckpt --img_folder example_data --out_folder ./demo_out/example_data/ --full_frame
 ```
@@ -102,10 +102,9 @@ python demo.py --checkpoint ckpts/hamba/checkpoints/hamba.ckpt --img_folder exam
 
 ## Evaluation
 
-We followed [MeshGraphormer](https://github.com/microsoft/MeshGraphormer) for Test-time augmentation and without Test-time augmentation evaluation on the FreiHAND benchmark. First download the [FreiHAND](https://lmb.informatik.uni-freiburg.de/resources/datasets/FreihandDataset.en.html) dataset following the official repository.
-Download the trained Hamba model weights [here]().
+We followed [MeshGraphormer](https://github.com/microsoft/MeshGraphormer) for Test-time augmentation and without Test-time augmentation evaluation on the FreiHAND benchmark. First download the [FreiHAND](https://lmb.informatik.uni-freiburg.de/resources/datasets/FreihandDataset.en.html) dataset following the official repository. Download the trained Hamba model weights [here](https://drive.google.com/file/d/1Otp1Dbs9sekc08wTM3EI3q3wq4U4eVo6/view?usp=sharing).
 
-### Without Test-Time Augmentation (wo_TTA)
+### Without Test-Time Augmentation
 
 Step 1: Compute the Results
 ```bash
@@ -121,7 +120,7 @@ python eval/freihand/eval_freihand_official.py \
 --pred_file_name hamba-ckptxx-sc10_rot0-pred.zip
 ```
 
-### With Test-Time Augmentation (TTA)
+### With Test-Time Augmentation
 
 Step 1: Compute the Results
 ```bash
