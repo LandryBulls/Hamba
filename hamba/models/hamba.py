@@ -86,7 +86,6 @@ class HAMBA(pl.LightningModule):
         mano_cfg = {k.lower(): v for k,v in dict(cfg.MANO).items()}
         self.mano = MANO(**mano_cfg)
 
-        # Buffer that shows whetheer we need to initialize ActNorm layers
         self.register_buffer('initialized', torch.tensor(False))
         # Setup renderer for visualization
         if init_renderer:
