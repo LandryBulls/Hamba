@@ -152,6 +152,5 @@ eval_data
 eval/freihand/results*
 _DATA
 ckpts
-third-party
 *.json
 *.JSON
