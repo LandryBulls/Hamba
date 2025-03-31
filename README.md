@@ -96,7 +96,7 @@ Download the MANO hand model. Please visit the [MANO website](https://mano.is.tu
 ## Demo 
 For demo, download the trained Hamba model weights [here]().
 ```bash
-python demo.py --checkpoint ckpts/hamba_freihand/checkpoints/hamba_freihand.ckpt --img_folder example_data --out_folder ./demo_out/example_data/ --full_frame
+python demo.py --checkpoint ckpts/hamba/checkpoints/hamba.ckpt --img_folder example_data --out_folder ./demo_out/example_data/ --full_frame
 ```
 
 
