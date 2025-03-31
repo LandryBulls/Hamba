@@ -1,0 +1,6 @@
+defaults:
+  - default.yaml
+  - default_hamba.yaml
+
+accelerator: gpu
+devices: 1
