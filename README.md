@@ -33,9 +33,7 @@
 ---
 
 ## :rocket: **Updates**
-- <i>More Coming Soon</i>
-- 🔲 **Coming Soon!**: Hamba Hugging Face. <i>Run Hamba with a single click!</i>
-- ✅ **Mar. 31, 2025**: We released the Hamba Inference Codes and Weights.
+- ✅ **Mar. 31, 2025**: We released the Hamba Inference Codes and Weights. Test Hamba today!
 - ✅ **Jan. 17, 2025**: Hamba featured in TechXplore! Check out our [Blog](https://techxplore.com/news/2025-01-ai-human.html).
 - ✅ **Sep. 25, 2024**: Hamba accepted at NeurIPS. Check out our Poster [here](https://neurips.cc/virtual/2024/poster/93574). See everyone at Vancouver!</i>
 - ✅ **Jul. 16, 2024**: Hamba project page is now live.
@@ -59,7 +57,7 @@ conda create --name hamba python=3.10
 conda activate hamba
 ```
 
-Next, you can install other dependencies similar to [Hamer](https://github.com/geopavlakos/hamer/). Below is a sample for CUDA 11.7, but you can adapt accordingly:
+Next, you can install other dependencies similar to [HaMeR](https://github.com/geopavlakos/hamer/). Below is a sample for CUDA 11.7, but you can adapt accordingly:
 ```bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu117
 pip install -e .[all]
