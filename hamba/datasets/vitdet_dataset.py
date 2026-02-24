@@ -30,11 +30,14 @@ class ViTDetDataset(torch.utils.data.Dataset):
                  rescale_factor=2.5,
                  train: bool = False,
                  keypoints_2d_arr=None,
+                 mp_hand=None,
+                 use_mediapipe=True,
                  **kwargs):
         super().__init__()
         self.cfg = cfg
         self.img_cv2 = img_cv2
         self.boxes = boxes
+        self.use_mediapipe = use_mediapipe
 
         assert train == False, "ViTDetDataset is only for inference"
         self.train = train
@@ -50,15 +53,20 @@ class ViTDetDataset(torch.utils.data.Dataset):
         self.right = right.astype(np.float32)
         self.keypoints_2d_arr = keypoints_2d_arr.astype(np.float32)
 
-        self.mp_hand = mp_hands.Hands(
-            # static_image_mode=True,
-            # model_complexity=1, # default 1
-            # max_num_hands=1, # default 2
-            # min_detection_confidence=0.5, 
-            # min_tracking_confidence=0.5,
-            min_detection_confidence=0.2, 
-            min_tracking_confidence=0.2
-        )
+        # Only create MediaPipe instance when actually needed
+        if self.use_mediapipe:
+            if mp_hand is not None:
+                self.mp_hand = mp_hand
+            else:
+                self.mp_hand = mp_hands.Hands(
+                    min_detection_confidence=0.2, 
+                    min_tracking_confidence=0.2
+                )
+        else:
+            self.mp_hand = None
+
+        # Pre-compute blurred image (shared across all crops in this frame)
+        self._precomputed_blur = {}
 
     def __len__(self) -> int:
         return len(self.personid)
@@ -80,22 +88,25 @@ class ViTDetDataset(torch.utils.data.Dataset):
 
         # 3. generate image patch
         # if use_skimage_antialias:
-        cvimg = self.img_cv2.copy()
-        img_height, img_width, img_channels = cvimg.shape
-        if True:
-            # Blur image to avoid aliasing artifacts
-            downsampling_factor = ((bbox_size*1.0) / patch_width)
-            print(f'{downsampling_factor=}')
-            downsampling_factor = downsampling_factor / 2.0
+        img_height, img_width, img_channels = self.img_cv2.shape
+        # Blur image to avoid aliasing artifacts (cache by downsampling_factor)
+        downsampling_factor = ((bbox_size*1.0) / patch_width)
+        downsampling_factor = downsampling_factor / 2.0
+        blur_key = round(downsampling_factor, 4)
+        if blur_key in self._precomputed_blur:
+            cvimg = self._precomputed_blur[blur_key]
+        else:
+            cvimg = self.img_cv2.copy()
             if downsampling_factor > 1.1:
-                cvimg  = gaussian(cvimg, sigma=(downsampling_factor-1)/2, channel_axis=2, preserve_range=True)
+                cvimg = gaussian(cvimg, sigma=(downsampling_factor-1)/2, channel_axis=2, preserve_range=True)
+            self._precomputed_blur[blur_key] = cvimg
 
         # output_path = "./demo_out/before_patch_vis.jpg"
         # cv2.imwrite(output_path, cvimg)
         # print("cvimg.shape: ", cvimg.shape)
         # print("output_path: ", output_path)
         
-        print("cvimg.shape: ", cvimg.shape) # cvimg.shape:  (1600, 1182, 3)
+        # print("cvimg.shape: ", cvimg.shape) # cvimg.shape:  (1600, 1182, 3)
         img_patch_cv, trans = generate_image_patch_cv2(cvimg,
                                                     center_x, center_y,
                                                     bbox_size, bbox_size,
@@ -116,7 +127,7 @@ class ViTDetDataset(torch.utils.data.Dataset):
             keypoints_2d = self.keypoints_2d_arr[idx]
             # bbox = self.boxes[idx]
             # curr_bbox_size = max(bbox[2] - bbox[0], bbox[3] - bbox[1])
-            print("keypoints_2d.shape: ", keypoints_2d.shape)
+            # print("keypoints_2d.shape: ", keypoints_2d.shape)
             # print("keypoints_2d: ", keypoints_2d)
             # keypoints_2d[:, 0] -= (center_x - curr_bbox_size/2)
             # keypoints_2d[:, 1] -= (center_y - curr_bbox_size/2)
@@ -128,65 +139,49 @@ class ViTDetDataset(torch.utils.data.Dataset):
             for n_jt in range(len(keypoints_2d)):
                 keypoints_2d[n_jt, 0:2] = trans_point2d(keypoints_2d[n_jt, 0:2], trans)
             keypoints_2d[:, :-1] = keypoints_2d[:, :-1] / patch_width - 0.5
-            
-            ## visual
-            # un-normalization
-            img_patch_rgb = np.copy(img_patch)
-            for n_c in range(min(self.img_cv2.shape[2], 3)):
-                img_patch_rgb[n_c, :, :] = img_patch_rgb[n_c, :, :] * self.std[n_c] + self.mean[n_c]
-            img_patch_rgb = img_patch_rgb.transpose(1, 2, 0)
-            
-            ############################
-            ## keypoints_2d from mediapipe start
-            results = self.mp_hand.process(img_patch_rgb.astype(np.uint8))
-            print('Handedness:', results.multi_handedness) # left or right
-            hand_landmarks = results.multi_hand_landmarks
-            if hand_landmarks is None:
-                item = {
-                    'img': img_patch,
-                    'personid': int(self.personid[idx]),
-                    'is_valid': -1,
-                    'keypoints_2d': np.zeros((21, 3)).astype(np.float32),
-                    'box_center': np.array([0,0]).astype(np.float32),
-                    'img_size': np.array([0,0]).astype(np.float32),
-                    'box_size': 0,
-                    'right': 1
-                    }
-                return item
-            
-            hand_landmark_obj = hand_landmarks[0].landmark
-            keypoints_2d_list = []
-            for point in hand_landmark_obj:
-                x = point.x * patch_width
-                y = point.y * patch_width
-                # z = point.visibility
-                z = 1.0
-                keypoints_2d_list.append([x, y, z])
-            keypoints_2d_224 = np.asarray(keypoints_2d_list).astype(np.float32)
-            
-            # image had been already flip
-            # if flip:
-            #     keypoints_2d_224 = fliplr_keypoints(keypoints_2d_224, patch_width, FLIP_KEYPOINT_PERMUTATION)
 
-            keypoints_2d_224[:, :-1] = keypoints_2d_224[:, :-1] / patch_width - 0.5
-            keypoints_2d = keypoints_2d_224
-            ## keypoints_2d from mediapipe end
-            ############################
+            if self.use_mediapipe:
+                # un-normalization for MediaPipe input
+                img_patch_rgb = np.copy(img_patch)
+                for n_c in range(min(self.img_cv2.shape[2], 3)):
+                    img_patch_rgb[n_c, :, :] = img_patch_rgb[n_c, :, :] * self.std[n_c] + self.mean[n_c]
+                img_patch_rgb = img_patch_rgb.transpose(1, 2, 0)
+                
+                ############################
+                ## keypoints_2d from mediapipe start
+                results = self.mp_hand.process(img_patch_rgb.astype(np.uint8))
+                hand_landmarks = results.multi_hand_landmarks
+                if hand_landmarks is None:
+                    item = {
+                        'img': img_patch,
+                        'personid': int(self.personid[idx]),
+                        'is_valid': -1,
+                        'keypoints_2d': np.zeros((21, 3)).astype(np.float32),
+                        'box_center': np.array([0,0]).astype(np.float32),
+                        'img_size': np.array([0,0]).astype(np.float32),
+                        'box_size': 0,
+                        'right': 1
+                        }
+                    return item
+                
+                hand_landmark_obj = hand_landmarks[0].landmark
+                keypoints_2d_list = []
+                for point in hand_landmark_obj:
+                    x = point.x * patch_width
+                    y = point.y * patch_width
+                    z = 1.0
+                    keypoints_2d_list.append([x, y, z])
+                keypoints_2d_224 = np.asarray(keypoints_2d_list).astype(np.float32)
 
-            # keypoints_2d_vis = (keypoints_2d[:, :2] + 0.5) * patch_width 
-            # for point in keypoints_2d_vis[:, :2]:
-            #     x, y = map(int, point)
-            #     cv2.circle(img_patch_rgb, (x, y), 5, (255, 0, 0), -1) 
-            # output_path = "./demo_out/joint_vis.jpg"
-            # cv2.imwrite(output_path, img_patch_rgb[:, :, ::-1])
-            # print("img_patch_rgb.shape: ", img_patch_rgb.shape)
-            # print("output_path: ", output_path)
+                keypoints_2d_224[:, :-1] = keypoints_2d_224[:, :-1] / patch_width - 0.5
+                keypoints_2d = keypoints_2d_224
+                ## keypoints_2d from mediapipe end
+                ############################
 
+            # Mark keypoints outside center region as low-confidence
             conf_threshold = 0.5
             invalid_mask = np.logical_or(np.abs(keypoints_2d[:, 0]) > conf_threshold, np.abs(keypoints_2d[:, 1]) > conf_threshold)
             keypoints_2d[invalid_mask, 2] = 0
-            # valid_index = keypoints_2d[:, -1] < 0.3
-            # print("norm keypoints_2d: ", keypoints_2d)
 
         item = {
             'img': img_patch,
